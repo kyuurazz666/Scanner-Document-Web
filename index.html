@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pindai - Scanner Dokumen</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a73e8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pindai">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#f4f6f9;--sf:#fff;--tx:#14181f;--mu:#6a7380;--ac:#1a73e8;--on:#fff;--bd:#dfe3e8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1216;--sf:#1a1f26;--tx:#eef1f5;--mu:#98a2b0;--ac:#5a9cff;--on:#0b1220;--bd:#2c333d;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1216;--sf:#1a1f26;--tx:#eef1f5;--mu:#98a2b0;--ac:#5a9cff;--on:#0b1220;--bd:#2c333d;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+.scr{display:none;height:100%;flex-direction:column}.scr.on{display:flex}
+.bar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--sf);border-bottom:1px solid var(--bd)}
+.bar h1{flex:1;margin:0;font-size:16px;text-align:center}
+button,.btn{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--sf);color:var(--tx);border:1px solid var(--bd);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.pri{background:var(--ac);color:var(--on);border-color:var(--ac);font-weight:600}
+.tool{display:flex;gap:8px;padding:10px 12px;background:var(--sf);border-top:1px solid var(--bd);overflow-x:auto}
+.tool>*{flex:1;white-space:nowrap}
+#nm{flex:1;min-width:0;font:600 16px inherit;font-family:inherit;border:0;background:transparent;color:var(--tx);padding:6px}
+#grid{flex:1;overflow:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;align-content:start}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+.card img{display:block;width:100%;aspect-ratio:3/4;object-fit:contain;background:#8884;cursor:zoom-in}
+.card div{display:flex;justify-content:space-between;align-items:center;padding:4px 6px;color:var(--mu);font-size:13px}
+.card button{padding:4px 8px;border-radius:8px}
+.empty{grid-column:1/-1;text-align:center;color:var(--mu);padding:60px 20px}
+.empty b{display:block;font-size:44px}
+.stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px;background:#0006}
+#cv{touch-action:none;border-radius:4px;box-shadow:0 2px 16px #0006}
+#out{width:100%;height:100%;object-fit:contain}
+.chips button.on,.fmt button.on{background:var(--ac);color:var(--on);border-color:var(--ac)}
+.hid{display:none}
+.adj{display:grid;grid-template-columns:auto 1fr 34px;gap:4px 10px;align-items:center;padding:8px 14px;background:var(--sf);border-top:1px solid var(--bd);font-size:13px;color:var(--mu)}.adj input{width:100%;margin:0}.adj output{text-align:right}
+#sheet{position:fixed;inset:0;background:#0008;display:none;align-items:flex-end;z-index:8}#sheet .in{background:var(--sf);width:100%;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));box-sizing:border-box}.fmt{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 8px}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:20px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:86%;text-align:center}
+#toast.on{opacity:1}
+#zoom{position:fixed;inset:0;background:#000d;display:none;align-items:center;justify-content:center;z-index:9;padding:16px}
+#zoom img{max-width:100%;max-height:100%}
+</style></head>
+<body>
+
+<section class="scr on" id="home">
+  <div class="bar"><input id="nm" aria-label="Nama dokumen"><span id="cnt" style="color:var(--mu)"></span></div>
+  <div id="grid"></div>
+  <div class="tool">
+    <label class="btn pri" for="fc">📷 Kamera</label>
+    <label class="btn" for="fg">🖼️ Galeri</label>
+    <button id="exp">⬇️ Ekspor</button>
+  </div>
+  <input class="hid" id="fc" type="file" accept="image/*" capture="environment">
+  <input class="hid" id="fg" type="file" accept="image/*" multiple>
+</section>
+
+<section class="scr" id="crop">
+  <div class="bar"><button id="cX">Lewati</button><h1>Atur sudut dokumen</h1><button class="pri" id="cOk">Lanjut ›</button></div>
+  <div class="stage" id="cbox"><canvas id="cv"></canvas></div>
+  <div class="tool"><button id="rot">⟳ Putar</button><button id="auto">✨ Otomatis</button><button id="full">⛶ Seluruh foto</button></div>
+</section>
+
+<section class="scr" id="edit">
+  <div class="bar"><button id="eBack">‹ Sudut</button><h1>Filter</h1><button class="pri" id="eOk">Simpan ✓</button></div>
+  <div class="stage"><canvas id="out"></canvas></div>
+  <div class='adj'><span>Kecerahan</span><input type='range' id='sb' min='-50' max='50' value='0'><output>0</output><span>Kontras</span><input type='range' id='sc' min='-50' max='80' value='0'><output>0</output><span>Ketajaman</span><input type='range' id='ss' min='0' max='100' value='0'><output>0</output></div>
+  <div class="tool chips" id="chips">
+    <button data-f='asli'>Asli</button><button data-f='magic' class='on'>Magic</button><button data-f='sharp'>Lebih jelas</button><button data-f='bright'>Terang</button><button data-f='gray'>Abu-abu</button><button data-f='bw'>Hitam-putih</button>
+  </div>
+</section>
+
+<div id='sheet'><div class='in'><b>Ekspor sebagai</b><div class='fmt' id='fmt'><button data-x='pdf' class='on'>PDF</button><button data-x='jpg'>JPEG</button><button data-x='png'>PNG</button><button data-x='webp'>WebP</button></div><div id='fnote' style='color:var(--mu);font-size:13px;margin-bottom:12px'></div><div style='display:flex;gap:8px'><button id='sX' style='flex:1'>Batal</button><button id='sOk' class='pri' style='flex:2'>Simpan</button></div></div></div>
+<div id="zoom"><img alt="Pratinjau halaman"></div>
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+let pages=[],queue=[],base,pts,raw,filter='magic',bgData=null,k=1;
+const cv=$('#cv'),out=$('#out');
+
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2600)}
+function show(id){document.querySelectorAll('.scr').forEach(e=>e.classList.toggle('on',e.id===id))}
+
+/* ---------- Beranda ---------- */
+$('#nm').value='Scan '+new Date().toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'});
+function render(){
+  $('#cnt').textContent=pages.length?pages.length+' hal.':'';
+  $('#grid').innerHTML=pages.length?pages.map((p,i)=>`<div class="card"><img src="${p.url}" data-z="${i}" alt="Halaman ${i+1}"><div><span>${i+1}</span><span><button data-i="${i}" data-a="l" aria-label="Geser maju">◀</button> <button data-i="${i}" data-a="r" aria-label="Geser mundur">▶</button> <button data-i="${i}" data-a="d" aria-label="Hapus">✕</button></span></div></div>`).join(''):`<div class="empty"><b>📄</b>Belum ada halaman.<br>Ketuk Kamera untuk memindai dokumen.</div>`;
+}
+$('#grid').onclick=e=>{
+  const z=e.target.dataset.z;if(z!==undefined){const w=$('#zoom');w.firstElementChild.src=pages[z].cv.toDataURL('image/jpeg',.85);w.style.display='flex';return}
+  const b=e.target.closest('button');if(!b)return;const i=+b.dataset.i,a=b.dataset.a;
+  if(a==='d')pages.splice(i,1);
+  else{const j=a==='l'?i-1:i+1;if(j>=0&&j<pages.length)[pages[i],pages[j]]=[pages[j],pages[i]]}
+  render();
+};
+$('#zoom').onclick=e=>e.currentTarget.style.display='none';
+for(const id of['fc','fg'])$('#'+id).onchange=e=>{queue.push(...e.target.files);e.target.value='';next()};
+
+function loadFile(f){return new Promise(res=>{
+  const u=URL.createObjectURL(f),im=new Image();
+  im.onload=()=>{const s=Math.min(1,2000/Math.max(im.width,im.height)),c=document.createElement('canvas');
+    c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c)};
+  im.onerror=()=>res(null);im.src=u})}
+
+async function next(){
+  if(!queue.length){show('home');render();return}
+  base=await loadFile(queue.shift());
+  if(!base){toast('Gambar tidak bisa dibuka');return next()}
+  pts=detect(base);show('crop');requestAnimationFrame(drawCrop);
+}
+
+/* ---------- Deteksi tepi otomatis (Otsu + titik ekstrem) ---------- */
+function detect(c){
+  const W=c.width,H=c.height,s=160/Math.max(W,H),tw=Math.max(8,Math.round(W*s)),th=Math.max(8,Math.round(H*s));
+  const t=document.createElement('canvas');t.width=tw;t.height=th;const x=t.getContext('2d');x.drawImage(c,0,0,tw,th);
+  const d=x.getImageData(0,0,tw,th).data,g=new Uint8Array(tw*th),hist=new Array(256).fill(0);
+  for(let i=0;i<g.length;i++){g[i]=.299*d[i*4]+.587*d[i*4+1]+.114*d[i*4+2]|0;hist[g[i]]++}
+  let sum=0;for(let i=0;i<256;i++)sum+=i*hist[i];
+  let wB=0,sB=0,best=0,th0=128;
+  for(let i=0;i<256;i++){wB+=hist[i];if(!wB)continue;const wF=g.length-wB;if(!wF)break;sB+=i*hist[i];
+    const v=wB*wF*Math.pow(sB/wB-(sum-sB)/wF,2);if(v>best){best=v;th0=i}}
+  let bs=0,bn=0,cs=0,cn=0;
+  for(let y=0;y<th;y++)for(let x2=0;x2<tw;x2++){const v=g[y*tw+x2];
+    if(x2<3||y<3||x2>=tw-3||y>=th-3){bs+=v;bn++}else if(Math.abs(x2-tw/2)<tw/5&&Math.abs(y-th/2)<th/5){cs+=v;cn++}}
+  const inv=bs/bn>cs/cn;
+  let tl=1e9,br=-1e9,tr=-1e9,bl=1e9,P={},n=0;
+  for(let y=0;y<th;y++)for(let x2=0;x2<tw;x2++){const m=(g[y*tw+x2]>th0)!==inv;if(!m)continue;n++;
+    const a=x2+y,b=x2-y;
+    if(a<tl){tl=a;P.tl=[x2,y]}if(a>br){br=a;P.br=[x2,y]}if(b>tr){tr=b;P.tr=[x2,y]}if(b<bl){bl=b;P.bl=[x2,y]}}
+  const f=n/(tw*th);
+  if(f<.08||f>.93||!P.tl||!P.tr||!P.br||!P.bl)return inset(W,H);
+  return[P.tl,P.tr,P.br,P.bl].map(p=>[Math.min(W,Math.max(0,(p[0]+.5)/s)),Math.min(H,Math.max(0,(p[1]+.5)/s))]);
+}
+function inset(W,H,m=.06){return[[W*m,H*m],[W*(1-m),H*m],[W*(1-m),H*(1-m)],[W*m,H*(1-m)]]}
+
+/* ---------- Layar atur sudut ---------- */
+function drawCrop(){
+  const b=$('#cbox'),dpr=window.devicePixelRatio||1;
+  k=Math.min((b.clientWidth-24)/base.width,(b.clientHeight-24)/base.height);
+  cv.style.width=base.width*k+'px';cv.style.height=base.height*k+'px';
+  cv.width=Math.round(base.width*k*dpr);cv.height=Math.round(base.height*k*dpr);paint();
+}
+function paint(){
+  const x=cv.getContext('2d');x.setTransform(cv.width/base.width,0,0,cv.height/base.height,0,0);
+  x.drawImage(base,0,0);
+  x.fillStyle='rgba(0,0,0,.5)';x.beginPath();x.rect(0,0,base.width,base.height);
+  pts.forEach((p,i)=>i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));x.closePath();x.fill('evenodd');
+  x.beginPath();pts.forEach((p,i)=>i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));x.closePath();
+  x.strokeStyle='#4da3ff';x.lineWidth=2.5/k;x.stroke();
+  for(const p of pts){x.beginPath();x.arc(p[0],p[1],13/k,0,7);x.fillStyle='#fff';x.fill();x.lineWidth=3/k;x.stroke()}
+}
+let drag=-1;
+cv.onpointerdown=e=>{
+  const r=cv.getBoundingClientRect(),px=(e.clientX-r.left)/k,py=(e.clientY-r.top)/k;let bd=48/k;drag=-1;
+  pts.forEach((p,i)=>{const d=Math.hypot(p[0]-px,p[1]-py);if(d<bd){bd=d;drag=i}});
+  if(drag>=0)cv.setPointerCapture(e.pointerId);
+};
+cv.onpointermove=e=>{
+  if(drag<0)return;const r=cv.getBoundingClientRect();
+  pts[drag]=[Math.min(base.width,Math.max(0,(e.clientX-r.left)/k)),Math.min(base.height,Math.max(0,(e.clientY-r.top)/k))];paint();
+};
+cv.onpointerup=cv.onpointercancel=()=>drag=-1;
+addEventListener('resize',()=>{if($('#crop').classList.contains('on'))drawCrop()});
+$('#auto').onclick=()=>{pts=detect(base);paint()};
+$('#full').onclick=()=>{pts=inset(base.width,base.height,0);paint()};
+$('#rot').onclick=()=>{
+  const c=document.createElement('canvas');c.width=base.height;c.height=base.width;const x=c.getContext('2d');
+  x.translate(c.width,0);x.rotate(Math.PI/2);x.drawImage(base,0,0);base=c;pts=detect(base);drawCrop();
+};
+$('#cX').onclick=next;
+$('#cOk').onclick=()=>{
+  toast('Memproses…');
+  setTimeout(()=>{raw=warp();bgData=null;resetAdj();show('edit');applyFilter()},30);
+};
+
+/* ---------- Koreksi perspektif (homografi) ---------- */
+function warp(){
+  const[p0,p1,p2,p3]=pts,dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+  let W=Math.max(dist(p0,p1),dist(p3,p2)),H=Math.max(dist(p0,p3),dist(p1,p2));
+  const s=Math.min(1,1800/Math.max(W,H));W=Math.max(2,Math.round(W*s));H=Math.max(2,Math.round(H*s));
+  const dx1=p1[0]-p2[0],dx2=p3[0]-p2[0],dx3=p0[0]-p1[0]+p2[0]-p3[0],
+        dy1=p1[1]-p2[1],dy2=p3[1]-p2[1],dy3=p0[1]-p1[1]+p2[1]-p3[1],
+        den0=dx1*dy2-dy1*dx2||1e-9,g=(dx3*dy2-dy3*dx2)/den0,h=(dx1*dy3-dy1*dx3)/den0,
+        a=p1[0]-p0[0]+g*p1[0],b=p3[0]-p0[0]+h*p3[0],c=p0[0],
+        d=p1[1]-p0[1]+g*p1[1],e=p3[1]-p0[1]+h*p3[1],f=p0[1];
+  const bw=base.width,bh=base.height,S=base.getContext('2d').getImageData(0,0,bw,bh).data,D=new ImageData(W,H),O=D.data;
+  for(let y=0;y<H;y++){const v=(y+.5)/H;
+    for(let x=0;x<W;x++){const u=(x+.5)/W,q=g*u+h*v+1;
+      let sx=(a*u+b*v+c)/q-.5,sy=(d*u+e*v+f)/q-.5;
+      sx=Math.min(bw-2,Math.max(0,sx));sy=Math.min(bh-2,Math.max(0,sy));
+      const x0=sx|0,y0=sy|0,fx=sx-x0,fy=sy-y0,i=(y0*bw+x0)*4,o=(y*W+x)*4;
+      for(let j=0;j<3;j++){
+        const t=S[i+j]*(1-fx)+S[i+4+j]*fx,bt=S[i+bw*4+j]*(1-fx)+S[i+bw*4+4+j]*fx;O[o+j]=t*(1-fy)+bt*fy}
+      O[o+3]=255}}
+  return D;
+}
+
+/* ---------- Filter ---------- */
+function background(){
+  if(bgData)return bgData;
+  const W=raw.width,H=raw.height,s=document.createElement('canvas');s.width=W;s.height=H;s.getContext('2d').putImageData(raw,0,0);
+  const t=document.createElement('canvas');t.width=Math.max(2,Math.round(W/40));t.height=Math.max(2,Math.round(H/40));
+  const tx=t.getContext('2d');tx.imageSmoothingEnabled=true;tx.drawImage(s,0,0,t.width,t.height);
+  const u=document.createElement('canvas');u.width=W;u.height=H;const ux=u.getContext('2d');ux.imageSmoothingEnabled=true;ux.drawImage(t,0,0,W,H);
+  return bgData=ux.getImageData(0,0,W,H).data;
+}
+function applyFilter(){
+  const W=raw.width,H=raw.height,res=new ImageData(new Uint8ClampedArray(raw.data),W,H),R=res.data;
+  if(filter!=='asli'){
+    const B=background(),cl=v=>v<0?0:v>1?255:v*255;
+    for(let i=0;i<R.length;i+=4){
+      if(filter==='magic'||filter==='sharp'){for(let j=0;j<3;j++)R[i+j]=cl((R[i+j]/(B[i+j]+1)-.55)/.4)}
+      else if(filter==='bright'){for(let j=0;j<3;j++)R[i+j]=cl((R[i+j]/(B[i+j]+1)-.35)/.62)}
+      else{
+        const l=.299*R[i]+.587*R[i+1]+.114*R[i+2],bl=.299*B[i]+.587*B[i+1]+.114*B[i+2],t=l/(bl+1);
+        const v=filter==='bw'?(t<.8?0:255):cl((t-.55)/.4);R[i]=R[i+1]=R[i+2]=v}
+    }
+  }
+  if(adj.br||adj.ct){const c=1+adj.ct/100,b=adj.br*2.55;for(let i=0;i<R.length;i+=4)for(let j=0;j<3;j++)R[i+j]=(R[i+j]-128)*c+128+b}
+  const am=adj.sh/100+(filter==='sharp'?.8:0);if(am>0)sharpen(res,am);
+  out.width=W;out.height=H;out.getContext('2d').putImageData(res,0,0);
+  document.querySelectorAll('#chips button').forEach(b=>b.classList.toggle('on',b.dataset.f===filter));
+}
+$('#chips').onclick=e=>{const f=e.target.dataset.f;if(f){filter=f;applyFilter()}};
+$('#eBack').onclick=()=>{show('crop');requestAnimationFrame(drawCrop)};
+$('#eOk').onclick=()=>{
+  const c=document.createElement('canvas');c.width=out.width;c.height=out.height;c.getContext('2d').drawImage(out,0,0);
+  const t=document.createElement('canvas'),s=360/Math.max(out.width,out.height);t.width=Math.round(out.width*s);t.height=Math.round(out.height*s);t.getContext('2d').drawImage(out,0,0,t.width,t.height);
+  pages.push({cv:c,url:t.toDataURL('image/jpeg',.8),w:out.width,h:out.height});
+  toast('Halaman '+pages.length+' tersimpan');next();
+};
+
+/* ---------- Penyesuaian & penajaman ---------- */
+const adj={br:0,ct:0,sh:0},SL={sb:'br',sc:'ct',ss:'sh'};let raf=0;
+function resetAdj(){adj.br=adj.ct=adj.sh=0;document.querySelectorAll('.adj input').forEach(i=>{i.value=0;i.nextElementSibling.textContent='0'})}
+document.querySelectorAll('.adj input').forEach(i=>i.oninput=()=>{adj[SL[i.id]]=+i.value;i.nextElementSibling.textContent=i.value;cancelAnimationFrame(raf);raf=requestAnimationFrame(applyFilter)});
+function sharpen(im,a){const W=im.width,H=im.height,S=new Uint8ClampedArray(im.data),D=im.data,r=W*4;
+  for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){const i=(y*W+x)*4;for(let j=0;j<3;j++){const q=i+j;D[q]=S[q]*(1+4*a)-a*(S[q-4]+S[q+4]+S[q-r]+S[q+r])}}}
+
+/* ---------- Ekspor: PDF / JPEG / PNG / WebP ---------- */
+let fmt='pdf';
+const NOTE={pdf:'Semua halaman jadi satu file PDF (A4).',jpg:'JPEG: ukuran kecil. Jika halaman lebih dari satu, dikemas dalam ZIP.',png:'PNG: tanpa penurunan kualitas, file lebih besar. Jika halaman lebih dari satu, dikemas dalam ZIP.',webp:'WebP: kecil dan tajam. Jika halaman lebih dari satu, dikemas dalam ZIP.'};
+function note(){$('#fnote').textContent=NOTE[fmt];document.querySelectorAll('#fmt button').forEach(b=>b.classList.toggle('on',b.dataset.x===fmt))}
+$('#exp').onclick=()=>{if(!pages.length)return toast('Belum ada halaman');note();$('#sheet').style.display='flex'};
+$('#sX').onclick=()=>$('#sheet').style.display='none';
+$('#fmt').onclick=e=>{if(e.target.dataset.x){fmt=e.target.dataset.x;note()}};
+$('#sOk').onclick=async()=>{$('#sheet').style.display='none';if(fmt==='pdf')await toPdf();else await toImages()};
+async function saveFile(name,blob){try{const dl=window.claude&&await claude.use('downloads');
+  if(dl){await dl.save({filename:name,data:blob});toast('Tersimpan')}
+  else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();toast('Diunduh')}
+  }catch(err){if(!err||err.code!=='declined')toast('Gagal menyimpan')}}
+const MIME={jpg:'image/jpeg',png:'image/png',webp:'image/webp'},fname=()=>($('#nm').value.trim()||'Scan').replace(/[^a-zA-Z0-9 ._-]/g,'-');
+async function toImages(){
+  toast('Menyiapkan…');const bl=[];
+  for(const p of pages)bl.push(await new Promise(r=>p.cv.toBlob(r,MIME[fmt],.92)));
+  const ext=bl[0].type==='image/jpeg'?'jpg':bl[0].type==='image/webp'?'webp':'png';
+  if(bl.length===1)return saveFile(fname()+'.'+ext,bl[0]);
+  const fs=[];for(let i=0;i<bl.length;i++)fs.push({n:fname()+'-'+(i+1)+'.'+ext,d:new Uint8Array(await bl[i].arrayBuffer())});
+  saveFile(fname()+'.zip',zip(fs));
+}
+const CT=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let q=0;q<8;q++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc=d=>{let c=-1;for(let i=0;i<d.length;i++)c=CT[(c^d[i])&255]^(c>>>8);return(c^-1)>>>0};
+function zip(fs){const enc=new TextEncoder(),parts=[],cd=[];let off=0;
+  for(const f of fs){const n=enc.encode(f.n),c=crc(f.d),h=new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(12,0x21,true);h.setUint32(14,c,true);h.setUint32(18,f.d.length,true);h.setUint32(22,f.d.length,true);h.setUint16(26,n.length,true);
+    parts.push(h.buffer,n,f.d);
+    const e=new DataView(new ArrayBuffer(46));e.setUint32(0,0x02014b50,true);e.setUint16(4,20,true);e.setUint16(6,20,true);e.setUint16(8,0x0800,true);e.setUint16(14,0x21,true);e.setUint32(16,c,true);e.setUint32(20,f.d.length,true);e.setUint32(24,f.d.length,true);e.setUint16(28,n.length,true);e.setUint32(42,off,true);cd.push(e.buffer,n);
+    off+=30+n.length+f.d.length}
+  const cs=cd.reduce((s,b)=>s+b.byteLength,0),z=new DataView(new ArrayBuffer(22));
+  z.setUint32(0,0x06054b50,true);z.setUint16(8,fs.length,true);z.setUint16(10,fs.length,true);z.setUint32(12,cs,true);z.setUint32(16,off,true);
+  return new Blob([...parts,...cd,z.buffer],{type:'application/zip'})}
+
+/* ---------- PDF ---------- */
+async function toPdf(){
+  if(!pages.length)return toast('Belum ada halaman');
+  if(!window.jspdf)return toast('Pustaka PDF gagal dimuat. Periksa koneksi.');
+  const{jsPDF}=window.jspdf,L=p=>p.w>p.h?'l':'p',doc=new jsPDF({orientation:L(pages[0]),unit:'pt',format:'a4'});
+  pages.forEach((p,i)=>{
+    if(i)doc.addPage('a4',L(p));
+    const pw=doc.internal.pageSize.getWidth(),ph=doc.internal.pageSize.getHeight(),s=Math.min(pw/p.w,ph/p.h),w=p.w*s,h=p.h*s;
+    doc.addImage(p.cv.toDataURL('image/jpeg',.92),'JPEG',(pw-w)/2,(ph-h)/2,w,h);
+  });
+  const blob=doc.output('blob'),name=($('#nm').value.trim()||'Scan').replace(/[\\/:*?"<>|]/g,'-')+'.pdf';
+  try{
+    const dl=window.claude&&await claude.use('downloads');
+    if(dl){await dl.save({filename:name,data:blob});toast('PDF disimpan')}
+    else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();toast('PDF diunduh')}
+  }catch(err){if(err&&err.code!=='declined')toast('Gagal menyimpan PDF')}
+};
+render();
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
+</body></html>
